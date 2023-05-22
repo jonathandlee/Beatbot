@@ -1,6 +1,7 @@
 import asyncio
 import websockets
 import json
+import discord
 
 async def handle_message(message):
     # Your logic to process the received message goes here
@@ -27,4 +28,5 @@ async def listen_to_websocket():
 
 def start_loop():
     asyncio.get_event_loop().run_until_complete(listen_to_websocket())
+
 

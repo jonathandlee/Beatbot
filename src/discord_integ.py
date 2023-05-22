@@ -3,6 +3,7 @@ import discord
 from discord import app_commands
 from src import listener
 from src import get_info
+from src import json_integs
 import time
 import datetime
 import asyncio
@@ -75,40 +76,79 @@ async def handle_message(message,ctx: discord.Interaction):
         uuid = str(get_user(ctx.user.id))
         # Process the WebSocket message and send a Discord message
         #await ctx.followup.send(f"Received a WebSocket update: {message}")
-        print("getting discord id")
-        print(uuid)
-
-
         try: 
             response = json.loads(message)
-            #print(response)
-            #print(type(response))
-
-            #print(response["commandData"]["score"]["leaderboardPlayerInfo"]["id"])
-            #print("getting ss uid")
             uid = response["commandData"]["score"]["leaderboardPlayerInfo"]["id"]
-
-            #print(type(uid))
-            #print(type(uuid))
-            #print(uid == uuid)
-
             print(uid)
-            if uid == uuid:
+            if uid != uuid:
                 #print("uh?")
                 embed_to_end = create_embed(uid)
                 await ctx.followup.send("",embed=embed_to_end)
-                #return embed_to_end
-            #print("oh")
-            #return 0
         except:
             print("idek")
             #return 0
+
+
 
 async def listen_to_websocket(ctx:discord.Interaction):
     websocket = await websockets.connect('wss://scoresaber.com/ws')  # Replace with your WebSocket URL
     while True:
         message = await websocket.recv()
         await handle_message(message,ctx)
+
+
+
+
+async def handle_messages(message,ctx: discord.Client):
+        """Handles the message [message] in context [ctx]. Gets user id from [ctx], which is then turned into a scoresaber id."""
+
+
+
+        #uuid = str(get_user(ctx.user.id))
+        # if score uid is in listen_users.keys():
+        # for i in listen_users[uid]: await client.send
+
+
+
+        # Process the WebSocket message and send a Discord message
+        #await ctx.followup.send(f"Received a WebSocket update: {message}")
+        try: 
+            response = json.loads(message)
+            uid = response["commandData"]["score"]["leaderboardPlayerInfo"]["id"]
+
+            print("first try entrance")
+
+            print(uid)
+            keys = json_integs.get_keys()
+            print(keys)
+            print(uid not in keys)
+            
+
+            if str(uid) in keys:
+                embed_to_end = create_embed(uid)
+                channels = json_integs.get_listeners(uid)
+                print("getting channels")
+                print(channels)
+                for i in channels:
+                    channel = ctx.get_channel(i)
+                    print("attempting to send")
+                    await channel.send("",embed=embed_to_end)
+                
+
+                #print("uh?")
+                #embed_to_end = create_embed(uid)
+                #channel = ctx.get_channel()
+
+                #await ctx.followup.send("",embed=embed_to_end)
+        except:
+            print("idek")
+            #return 0
+
+async def listen_to_websocket_messages(ctx: discord.Client):
+    websocket = await websockets.connect('wss://scoresaber.com/ws')  # Replace with your WebSocket URL
+    while True:
+        message = await websocket.recv()
+        await handle_messages(message, ctx)
 
 
 def get_config():
@@ -139,6 +179,7 @@ def update_users(disc_id,ss_id):
     
 
 
+
 config = get_config()
 
 class aclient(discord.Client):
@@ -151,16 +192,20 @@ def initialize_bot():
     """Initialize PyGPT Bot Client"""
     client = aclient()
 
+    
+
     @client.event
     async def on_ready():
         await client.tree.sync()
+        await listen_to_websocket_messages(client)
 
     @client.tree.command(name="register",description="[Required for bot usage] register your profile with the bot!")
-    async def recentname(interaction: discord.Interaction, *, scoresaber_id: str):
+    async def register(interaction: discord.Interaction, *, scoresaber_id: str):
         await interaction.response.defer(ephemeral=False)
         discord_id = interaction.user.id
         scoresaber_id = int(scoresaber_id)
         update_users(discord_id, scoresaber_id)
+        json_integs.add_listeners(scoresaber_id)
         await interaction.followup.send(f"(Hopefully) successfully register discord id {discord_id} with scoresaber id {scoresaber_id}")
 
         
@@ -202,12 +247,19 @@ def initialize_bot():
     async def listen(interaction: discord.Interaction):
         print(interaction.user.id)
         
-
+        
         await interaction.response.defer(ephemeral=False)
+        ssid = get_user(interaction.user.id)
 
-        await interaction.followup.send(f"Waiting for plays from {interaction.user.name}")
 
-        await listen_to_websocket(interaction)
+        #await interaction.followup.send(f"Waiting for plays from {interaction.user.name}")
+        json_integs.update_listeners(ssid,interaction.channel_id)
+        await interaction.followup.send(f"Now waiting for plays from {interaction.user.name} in {interaction.guild_id}")
+
+
+
+
+        #await listen_to_websocket(interaction)
 
 
 
